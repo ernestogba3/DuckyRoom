@@ -7,7 +7,14 @@ from .models import Announcement, Assignment, CalendarEvent, ClassRoom, Submissi
 
 class ClassRoomSerializer(serializers.ModelSerializer):
     teacher = UserSerializer(read_only=True)
-    student_count = serializers.IntegerField(source="students.count", read_only=True)
+    student_count = serializers.SerializerMethodField()
+
+    def get_student_count(self, obj):
+        # La lista de clases llega ya anotada desde la consulta, así que no
+        # hace falta contar de nuevo. Si el objeto viene suelto (por ejemplo
+        # al unirse a una clase), contamos sobre la marcha.
+        annotated = getattr(obj, "num_students", None)
+        return annotated if annotated is not None else obj.students.count()
 
     class Meta:
         model = ClassRoom

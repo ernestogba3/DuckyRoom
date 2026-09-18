@@ -1,13 +1,24 @@
 from rest_framework import permissions
 
 
+def es_miembro(classroom, user):
+    """¿El usuario es el profesor o un alumno matriculado?
+
+    Usa .exists() en lugar de `user in classroom.students.all()`, que traería
+    a todos los alumnos de la clase a memoria solo para comprobar a uno.
+    """
+    if classroom.teacher_id == user.id:
+        return True
+    return classroom.students.filter(pk=user.pk).exists()
+
+
 class IsTeacherOfClassroom(permissions.BasePermission):
     """Solo el profesor dueño de la clase puede modificarla."""
 
     def has_object_permission(self, request, view, obj):
         classroom = obj if hasattr(obj, "teacher") else obj.classroom
         if request.method in permissions.SAFE_METHODS:
-            return classroom.teacher == request.user or request.user in classroom.students.all()
+            return es_miembro(classroom, request.user)
         return classroom.teacher == request.user
 
 
@@ -16,7 +27,7 @@ class IsMemberOfClassroom(permissions.BasePermission):
 
     def has_object_permission(self, request, view, obj):
         classroom = obj if hasattr(obj, "teacher") else obj.classroom
-        return classroom.teacher == request.user or request.user in classroom.students.all()
+        return es_miembro(classroom, request.user)
 
 
 class IsEventCreatorOrTeacher(permissions.BasePermission):
@@ -24,9 +35,8 @@ class IsEventCreatorOrTeacher(permissions.BasePermission):
 
     def has_object_permission(self, request, view, obj):
         classroom = obj.classroom
-        is_member = classroom.teacher == request.user or request.user in classroom.students.all()
         if request.method in permissions.SAFE_METHODS:
-            return is_member
+            return es_miembro(classroom, request.user)
         return obj.created_by == request.user or classroom.teacher == request.user
 
 

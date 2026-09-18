@@ -1,12 +1,25 @@
-import random
+import secrets
 import string
 
 from django.conf import settings
 from django.db import models
 
+CODE_ALPHABET = string.ascii_uppercase + string.digits
+
 
 def generate_class_code():
-    return "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    """Código de 6 caracteres para invitar a una clase.
+
+    Reintenta si sale uno ya usado: el campo es único, así que sin esto una
+    colisión rompería la creación de la clase con un error 500.
+
+    Usa `secrets` en vez de `random` porque con `random` los códigos son
+    predecibles, y quien los prediga puede colarse en clases ajenas.
+    """
+    while True:
+        code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(6))
+        if not ClassRoom.objects.filter(code=code).exists():
+            return code
 
 
 class ClassRoom(models.Model):

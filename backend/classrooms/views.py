@@ -1,3 +1,4 @@
+from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -31,9 +32,17 @@ class ClassRoomViewSet(viewsets.ModelViewSet):
         # El .distinct() es imprescindible: unir las dos consultas genera un
         # JOIN con la tabla de alumnos, así que sin él una clase aparecería
         # repetida una vez por cada alumno matriculado.
+        #
+        # select_related trae al profesor en la misma consulta, y annotate
+        # calcula el número de alumnos en el propio SQL. Sin ellos, cada clase
+        # de la lista disparaba dos consultas más (el clásico problema N+1).
         return (
-            ClassRoom.objects.filter(teacher=user) | ClassRoom.objects.filter(students=user)
-        ).distinct()
+            (ClassRoom.objects.filter(teacher=user) | ClassRoom.objects.filter(students=user))
+            .distinct()
+            .select_related("teacher")
+            .prefetch_related("students")
+            .annotate(num_students=Count("students", distinct=True))
+        )
 
     def get_serializer_class(self):
         if self.action == "retrieve":

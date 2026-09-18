@@ -12,6 +12,7 @@ export default function ClassDetail() {
   const [assignments, setAssignments] = useState([]);
   const [tab, setTab] = useState("stream");
   const [error, setError] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const [newAnnouncement, setNewAnnouncement] = useState("");
   const [newAssignment, setNewAssignment] = useState({ title: "", description: "", points: 100 });
@@ -20,9 +21,20 @@ export default function ClassDetail() {
   const isTeacher = classroom && user && classroom.teacher.id === user.id;
 
   function loadAll() {
-    api.get(`/classrooms/${id}/`).then(({ data }) => setClassroom(data));
-    api.get(`/announcements/?classroom=${id}`).then(({ data }) => setAnnouncements(data));
-    api.get(`/assignments/?classroom=${id}`).then(({ data }) => setAssignments(data));
+    // Sin el .catch, un error de red o un 403 dejaba la página colgada en
+    // "Cargando clase..." para siempre, sin decir nada al usuario.
+    Promise.all([
+      api.get(`/classrooms/${id}/`),
+      api.get(`/announcements/?classroom=${id}`),
+      api.get(`/assignments/?classroom=${id}`),
+    ])
+      .then(([classroomRes, announcementsRes, assignmentsRes]) => {
+        setClassroom(classroomRes.data);
+        setAnnouncements(announcementsRes.data);
+        setAssignments(assignmentsRes.data);
+        setLoadFailed(false);
+      })
+      .catch(() => setLoadFailed(true));
   }
 
   useEffect(loadAll, [id]);
@@ -61,6 +73,17 @@ export default function ClassDetail() {
     } catch {
       setError("No se pudo entregar la tarea.");
     }
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="page">
+        <p className="error">
+          No se pudo cargar la clase. Puede que ya no tengas acceso o que el servidor no responda.
+        </p>
+        <button onClick={loadAll}>Reintentar</button>
+      </div>
+    );
   }
 
   if (!classroom) return <p className="page-loading">Cargando clase...</p>;

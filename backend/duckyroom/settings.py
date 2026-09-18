@@ -5,16 +5,30 @@ Django settings for duckyroom project.
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY", "django-insecure-^xsgf+kbe38_87j-0!g6l^18p9=9s-a@s(^i%q(mlqo52g2s@#"
-)
+# Por defecto False: si algún día despliegas y se te olvida la variable, es
+# preferible que la web no arranque en modo depuración enseñando tus trazas.
+DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 
-DEBUG = os.environ.get("DJANGO_DEBUG", "True") == "True"
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
+
+# Esta clave firma los tokens JWT: quien la conozca puede fabricar sesiones de
+# cualquier usuario. En desarrollo vale una de relleno, pero en producción
+# preferimos que la aplicación no arranque a que arranque insegura.
+if not DEBUG:
+    if len(SECRET_KEY) < 32:
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY falta o es demasiado corta (mínimo 32 caracteres). "
+            "Genera una con: python -c \"from django.core.management.utils import "
+            'get_random_secret_key; print(get_random_secret_key())"'
+        )
+elif not SECRET_KEY:
+    SECRET_KEY = "django-insecure-clave-de-desarrollo-no-usar-en-produccion-xxxx"
 
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 

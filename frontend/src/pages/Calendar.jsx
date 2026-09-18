@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
@@ -55,7 +55,13 @@ export default function Calendar() {
 
   const monthParam = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
 
+  // Si cambias de mes rápido, las respuestas pueden llegar desordenadas y
+  // pintar los eventos del mes equivocado. Numeramos cada petición y solo
+  // hacemos caso a la última que se lanzó.
+  const ultimaPeticion = useRef(0);
+
   function loadMonth() {
+    const peticion = ++ultimaPeticion.current;
     setLoading(true);
     Promise.all([
       api.get(`/events/?month=${monthParam}`),
@@ -63,12 +69,17 @@ export default function Calendar() {
       api.get("/classrooms/"),
     ])
       .then(([eventsRes, assignmentsRes, classesRes]) => {
+        if (peticion !== ultimaPeticion.current) return;
         setEvents(eventsRes.data);
         setAssignments(assignmentsRes.data.filter((a) => a.due_date));
         setClasses(classesRes.data);
       })
-      .catch(() => setError("No se pudo cargar el calendario."))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (peticion === ultimaPeticion.current) setError("No se pudo cargar el calendario.");
+      })
+      .finally(() => {
+        if (peticion === ultimaPeticion.current) setLoading(false);
+      });
   }
 
   useEffect(loadMonth, [monthParam]);

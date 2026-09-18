@@ -1,4 +1,8 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -133,6 +137,51 @@ class ClassRoomListTests(APITestCase):
         self.client.force_authenticate(teacher)
         response = self.client.get("/api/classrooms/")
         self.assertEqual(len(response.data), 1)
+
+
+class RendimientoTests(APITestCase):
+    def test_listar_clases_no_hace_una_consulta_por_clase(self):
+        """Sin optimizar, cada clase suma consultas: una por el profesor y otra
+        por el número de alumnos. Con 10 clases eso eran más de 100 consultas."""
+        teacher = User.objects.create_user(
+            username="profe", email="profe@test.com", password="ClaveSegura123", role=User.Role.TEACHER
+        )
+        for i in range(10):
+            classroom = ClassRoom.objects.create(name=f"Clase {i}", teacher=teacher)
+            for j in range(5):
+                classroom.students.add(
+                    User.objects.create_user(
+                        username=f"a{i}_{j}", email=f"a{i}_{j}@test.com", password="ClaveSegura123"
+                    )
+                )
+
+        self.client.force_authenticate(teacher)
+        with CaptureQueriesContext(connection) as consultas:
+            response = self.client.get("/api/classrooms/")
+
+        self.assertEqual(len(response.data), 10)
+        self.assertEqual(response.data[0]["student_count"], 5)
+        # El número de consultas no debe crecer con el número de clases.
+        print(f"\n[CONSULTAS] 10 clases x 5 alumnos -> {len(consultas)} consultas")
+        self.assertLess(len(consultas), 10, f"Demasiadas consultas: {len(consultas)}")
+
+
+class CodigoDeClaseTests(APITestCase):
+    def test_un_codigo_repetido_no_rompe_la_creacion(self):
+        """Si el código aleatorio ya existe, hay que generar otro en vez de
+        reventar con un error 500 por la restricción de unicidad."""
+        teacher = User.objects.create_user(
+            username="profe", email="profe@test.com", password="ClaveSegura123", role=User.Role.TEACHER
+        )
+        existente = ClassRoom.objects.create(name="Primera", teacher=teacher)
+
+        # El primer intento devuelve un código ya usado; el segundo, uno libre.
+        with patch("classrooms.models.secrets.choice", side_effect=list(existente.code) + list("ZZZZZZ")):
+            self.client.force_authenticate(teacher)
+            response = self.client.post("/api/classrooms/", {"name": "Segunda"})
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["code"], "ZZZZZZ")
 
 
 class CalendarEventTests(APITestCase):
