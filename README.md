@@ -1,0 +1,121 @@
+# DuckyRoom 🦆
+
+Un clon educativo de Google Classroom, hecho para **aprender** construyendo:
+backend con **Django + Django REST Framework** y frontend con **React + Vite**,
+comunicándose vía una API JSON con autenticación JWT.
+
+## ¿Por qué esta arquitectura?
+
+Backend y frontend están separados y se comunican solo por HTTP/JSON. Esto es
+lo que se usa en la mayoría de apps reales en producción, y te permite:
+
+- Escalar cada parte por separado (el frontend puede vivir en un CDN, el
+  backend en varios servidores detrás de un balanceador).
+- Reemplazar el frontend en el futuro (app móvil, otro framework) sin tocar
+  el backend.
+- Entender claramente la frontera entre "datos y reglas de negocio" (backend)
+  y "presentación e interacción" (frontend).
+
+```
+DuckyRoom/
+├── backend/     Django + DRF → expone la API en /api/
+│   ├── accounts/     Usuario personalizado con roles (profesor/estudiante) + JWT
+│   └── classrooms/   Clases, anuncios, tareas y entregas
+├── frontend/    React + Vite → consume la API
+│   └── src/
+│       ├── api/       Cliente axios con manejo automático de JWT
+│       ├── context/    Estado global de autenticación
+│       ├── pages/       Login, Registro, Dashboard, Detalle de clase
+│       └── components/  Navbar, rutas protegidas
+└── docker-compose.yml   Para correr todo junto con Postgres
+```
+
+## Modelo de datos (backend/classrooms/models.py)
+
+- **ClassRoom**: una clase, con un `code` único de 6 caracteres para
+  invitar estudiantes (como Google Classroom).
+- **Announcement**: anuncios que el profesor publica en el tablón.
+- **Assignment**: tareas con puntos y fecha de entrega.
+- **Submission**: la entrega de un estudiante para una tarea (única por
+  estudiante+tarea).
+
+Los permisos (`classrooms/permissions.py`) controlan quién puede hacer qué:
+solo el profesor de una clase puede crear tareas o anuncios; solo el dueño
+de una entrega o el profesor de la clase pueden verla/calificarla.
+
+## Cómo correrlo localmente (sin Docker)
+
+### 1. Backend
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate        # en Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
+python manage.py migrate
+python manage.py createsuperuser   # opcional, para entrar a /admin/
+python manage.py runserver
+```
+
+La API queda en `http://127.0.0.1:8000/api/`. El panel de administración
+de Django (útil para ver/editar datos directamente) en
+`http://127.0.0.1:8000/admin/`.
+
+### 2. Frontend
+
+En otra terminal:
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+npm run dev
+```
+
+Abre `http://localhost:5173`.
+
+### 3. Con Docker (opcional, usa Postgres en vez de SQLite)
+
+```bash
+docker compose up --build
+```
+
+## Flujo básico de uso
+
+1. Regístrate eligiendo el rol **Profesor**.
+2. Crea una clase → se genera un código de 6 caracteres.
+3. Regístrate (en otra sesión/navegador) como **Estudiante** y únete con
+   ese código.
+4. El profesor publica anuncios y crea tareas; el estudiante las entrega
+   desde la pestaña "Trabajo de clase".
+
+## Endpoints principales de la API
+
+| Método | Endpoint                          | Descripción                          |
+|--------|------------------------------------|---------------------------------------|
+| POST   | `/api/auth/register/`             | Crear cuenta                          |
+| POST   | `/api/auth/token/`                | Login (devuelve access + refresh)     |
+| POST   | `/api/auth/token/refresh/`        | Renovar el access token               |
+| GET    | `/api/auth/me/`                   | Usuario autenticado actual            |
+| GET/POST | `/api/classrooms/`              | Listar / crear clases                 |
+| POST   | `/api/classrooms/join/`           | Unirse a una clase con un código      |
+| GET/POST | `/api/announcements/?classroom=<id>` | Anuncios de una clase           |
+| GET/POST | `/api/assignments/?classroom=<id>`   | Tareas de una clase             |
+| POST   | `/api/assignments/<id>/submit/`   | Entregar una tarea (como estudiante)  |
+| GET/PATCH | `/api/submissions/`             | Ver / calificar entregas              |
+
+## Ideas para seguir aprendiendo y extender el proyecto
+
+- **Tests**: agrega tests con `pytest-django` o `APITestCase` de DRF para
+  los permisos (¿puede un estudiante crear una tarea? no debería).
+- **Subida de archivos**: `Submission.attachment` ya soporta archivos;
+  falta un `<input type="file">` en el frontend.
+- **Calificaciones**: construye una vista para que el profesor vea todas
+  las entregas de una tarea y las califique.
+- **Websockets/polling**: notificaciones en tiempo real cuando se publica
+  un anuncio.
+- **Roles múltiples**: un usuario que es profesor en una clase y
+  estudiante en otra.
+- **Despliegue**: prueba desplegar el backend en Railway/Render y el
+  frontend en Vercel/Netlify, apuntando `VITE_API_URL` a la URL del backend.
