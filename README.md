@@ -4,6 +4,15 @@ Un clon educativo de Google Classroom, hecho para **aprender** construyendo:
 backend con **Django + Django REST Framework** y frontend con **React + Vite**,
 comunicándose vía una API JSON con autenticación JWT.
 
+## Qué hace
+
+- **Cuentas con rol** de profesor o estudiante, con login por JWT.
+- **Clases** con un código de 6 caracteres para invitar, como en Classroom.
+- **Tablón de anuncios** que publica el profesor.
+- **Tareas y entregas**, con puntos y nota.
+- **Calendario con vista mensual** de exámenes y proyectos, con los eventos
+  de todas tus clases juntos.
+
 ## ¿Por qué esta arquitectura?
 
 Backend y frontend están separados y se comunican solo por HTTP/JSON. Esto es
@@ -20,12 +29,12 @@ lo que se usa en la mayoría de apps reales en producción, y te permite:
 DuckyRoom/
 ├── backend/     Django + DRF → expone la API en /api/
 │   ├── accounts/     Usuario personalizado con roles (profesor/estudiante) + JWT
-│   └── classrooms/   Clases, anuncios, tareas y entregas
+│   └── classrooms/   Clases, anuncios, tareas, entregas y calendario
 ├── frontend/    React + Vite → consume la API
 │   └── src/
 │       ├── api/       Cliente axios con manejo automático de JWT
 │       ├── context/    Estado global de autenticación
-│       ├── pages/       Login, Registro, Dashboard, Detalle de clase
+│       ├── pages/       Login, Registro, Dashboard, Detalle de clase, Calendario
 │       └── components/  Navbar, rutas protegidas
 └── docker-compose.yml   Para correr todo junto con Postgres
 ```
@@ -45,7 +54,29 @@ DuckyRoom/
 
 Los permisos (`classrooms/permissions.py`) controlan quién puede hacer qué:
 solo el profesor de una clase puede crear tareas o anuncios; solo el dueño
-de una entrega o el profesor de la clase pueden verla/calificarla.
+de una entrega o el profesor de la clase pueden verla/calificarla; y en el
+calendario cualquier miembro crea eventos, pero solo los borra quien los creó
+(o el profesor).
+
+## El calendario
+
+La vista mensual está en `frontend/src/pages/Calendar.jsx` y la cuadrícula
+está construida a mano, sin librerías de calendario, para que se pueda leer
+y entender entera. Dos detalles que merece la pena mirar:
+
+- **La semana empieza en lunes.** `Date.getDay()` devuelve 0 para domingo,
+  así que se gira con `(primerDia.getDay() + 6) % 7` para saber cuántas
+  casillas vacías van delante del día 1.
+- **Las fechas se construyen a mano** con `toISODate(año, mes, día)` en vez
+  de `toISOString()`. `toISOString()` convierte a UTC, y en España un evento
+  a medianoche se mostraría el día anterior.
+
+El backend filtra por mes con `?month=YYYY-MM`, así que cada vez que cambias
+de mes solo se piden los eventos de ese mes en lugar de traerlos todos.
+
+Además de los eventos que creas tú, el calendario muestra automáticamente las
+**fechas de entrega de las tareas** (`Assignment.due_date`), para no tener que
+apuntarlas dos veces.
 
 ## Cómo correrlo localmente (sin Docker)
 
@@ -104,6 +135,11 @@ cd backend
 venv\Scripts\python.exe manage.py test    # en Linux/Mac: python manage.py test
 ```
 
+Están en `backend/classrooms/tests.py` y cubren sobre todo los permisos, que
+es donde es fácil equivocarse: que un estudiante no pueda publicar anuncios ni
+crear tareas, que no veas eventos de clases en las que no estás, que no puedas
+borrar el evento de otra persona, y que el filtro `?month=` funcione.
+
 ## Endpoints principales de la API
 
 | Método | Endpoint                          | Descripción                          |
@@ -123,8 +159,12 @@ venv\Scripts\python.exe manage.py test    # en Linux/Mac: python manage.py test
 
 ## Ideas para seguir aprendiendo y extender el proyecto
 
-- **Tests**: agrega tests con `pytest-django` o `APITestCase` de DRF para
-  los permisos (¿puede un estudiante crear una tarea? no debería).
+- **Más tests**: ya hay tests de permisos en `classrooms/tests.py`. Añade los
+  que faltan: entregar dos veces la misma tarea, calificar siendo estudiante...
+- **Vista semanal o de agenda** en el calendario, reutilizando el mismo
+  endpoint `/api/events/`.
+- **Avisos de lo que viene**: una lista de "próximos exámenes" en el
+  dashboard, filtrando eventos por fecha futura.
 - **Subida de archivos**: `Submission.attachment` ya soporta archivos;
   falta un `<input type="file">` en el frontend.
 - **Calificaciones**: construye una vista para que el profesor vea todas
