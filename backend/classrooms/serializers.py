@@ -85,4 +85,14 @@ class SubmissionSerializer(serializers.ModelSerializer):
             "id", "assignment", "student", "content", "attachment",
             "submitted_at", "grade", "feedback",
         ]
-        read_only_fields = ["id", "student", "submitted_at"]
+        # grade y feedback son de solo lectura aquí a propósito: si fueran
+        # escribibles, un estudiante podría ponerse su propia nota al crear
+        # la entrega. Se escriben solo desde /api/submissions/<id>/grade/.
+        read_only_fields = ["id", "student", "submitted_at", "grade", "feedback"]
+
+
+class GradeSerializer(serializers.Serializer):
+    """Datos que el profesor manda al calificar una entrega."""
+
+    grade = serializers.IntegerField(min_value=0, required=False, allow_null=True)
+    feedback = serializers.CharField(required=False, allow_blank=True)

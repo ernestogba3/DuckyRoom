@@ -37,6 +37,12 @@ api.interceptors.response.use(
     try {
       const { data } = await axios.post(`${API_URL}/auth/token/refresh/`, { refresh });
       localStorage.setItem("access", data.access);
+      // El backend tiene ROTATE_REFRESH_TOKENS activado, así que cada refresco
+      // devuelve también un refresh nuevo. Hay que guardarlo: si seguimos
+      // usando el viejo, dejará de funcionar en cuanto se active la blacklist.
+      if (data.refresh) {
+        localStorage.setItem("refresh", data.refresh);
+      }
       pendingRequests.forEach(({ resolve }) => resolve());
       pendingRequests = [];
       return api(originalRequest);

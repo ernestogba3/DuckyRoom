@@ -31,13 +31,18 @@ class IsEventCreatorOrTeacher(permissions.BasePermission):
 
 
 class IsOwnerOrTeacher(permissions.BasePermission):
-    """Para entregas: el propio estudiante o el profesor de la clase."""
+    """Para entregas: el estudiante dueño edita su entrega; el profesor califica.
+
+    Nos fijamos en QUÉ acción se está ejecutando, no en los campos que vengan
+    en el cuerpo de la petición: mirar el cuerpo es frágil, porque basta con
+    cambiar el nombre de un campo para saltarse la comprobación.
+    """
 
     def has_object_permission(self, request, view, obj):
         is_owner = obj.student == request.user
         is_teacher = obj.assignment.classroom.teacher == request.user
         if request.method in permissions.SAFE_METHODS:
             return is_owner or is_teacher
-        if "grade" in request.data or "feedback" in request.data:
+        if getattr(view, "action", None) == "grade":
             return is_teacher
         return is_owner

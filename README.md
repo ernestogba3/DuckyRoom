@@ -155,7 +155,8 @@ borrar el evento de otra persona, y que el filtro `?month=` funcione.
 | POST   | `/api/assignments/<id>/submit/`   | Entregar una tarea (como estudiante)  |
 | GET/POST | `/api/events/`                  | Exámenes y proyectos del calendario   |
 | GET    | `/api/events/?month=YYYY-MM`      | Eventos de un mes (lo usa la vista mensual) |
-| GET/PATCH | `/api/submissions/`             | Ver / calificar entregas              |
+| GET    | `/api/submissions/?assignment=<id>` | Ver entregas                      |
+| POST   | `/api/submissions/<id>/grade/`    | Calificar una entrega (solo el profesor) |
 
 ## Ideas para seguir aprendiendo y extender el proyecto
 

@@ -17,6 +17,7 @@ from .serializers import (
     CalendarEventSerializer,
     ClassRoomDetailSerializer,
     ClassRoomSerializer,
+    GradeSerializer,
     JoinClassSerializer,
     SubmissionSerializer,
 )
@@ -27,7 +28,12 @@ class ClassRoomViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return ClassRoom.objects.filter(teacher=user) | ClassRoom.objects.filter(students=user)
+        # El .distinct() es imprescindible: unir las dos consultas genera un
+        # JOIN con la tabla de alumnos, así que sin él una clase aparecería
+        # repetida una vez por cada alumno matriculado.
+        return (
+            ClassRoom.objects.filter(teacher=user) | ClassRoom.objects.filter(students=user)
+        ).distinct()
 
     def get_serializer_class(self):
         if self.action == "retrieve":
@@ -167,4 +173,23 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         return qs.distinct()
 
     def perform_create(self, serializer):
+        classroom = serializer.validated_data["assignment"].classroom
+        if classroom.teacher == self.request.user:
+            raise PermissionDenied("El profesor no entrega tareas.")
+        if not classroom.students.filter(pk=self.request.user.pk).exists():
+            raise PermissionDenied("No estás matriculado en esta clase.")
         serializer.save(student=self.request.user)
+
+    @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
+    def grade(self, request, pk=None):
+        """Calificar una entrega. Reservado al profesor de la clase."""
+        submission = self.get_object()
+        if submission.assignment.classroom.teacher != request.user:
+            raise PermissionDenied("Solo el profesor de la clase puede calificar.")
+
+        serializer = GradeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        for field, value in serializer.validated_data.items():
+            setattr(submission, field, value)
+        submission.save()
+        return Response(SubmissionSerializer(submission).data)
