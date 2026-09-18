@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from accounts.serializers import UserSerializer
 
-from .models import Announcement, Assignment, ClassRoom, Submission
+from .models import Announcement, Assignment, CalendarEvent, ClassRoom, Submission
 
 
 class ClassRoomSerializer(serializers.ModelSerializer):
@@ -61,6 +61,19 @@ class AssignmentSerializer(serializers.ModelSerializer):
             return None
         submission = obj.submissions.filter(student=request.user).first()
         return SubmissionSerializer(submission).data if submission else None
+
+
+class CalendarEventSerializer(serializers.ModelSerializer):
+    created_by = UserSerializer(read_only=True)
+    classroom_name = serializers.CharField(source="classroom.name", read_only=True)
+
+    class Meta:
+        model = CalendarEvent
+        fields = [
+            "id", "classroom", "classroom_name", "created_by",
+            "title", "description", "event_type", "date", "created_at",
+        ]
+        read_only_fields = ["id", "created_by", "created_at"]
 
 
 class SubmissionSerializer(serializers.ModelSerializer):

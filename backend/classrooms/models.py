@@ -58,6 +58,29 @@ class Assignment(models.Model):
         return f"{self.title} ({self.classroom.name})"
 
 
+class CalendarEvent(models.Model):
+    class EventType(models.TextChoices):
+        EXAM = "EXAM", "Examen"
+        PROJECT = "PROJECT", "Proyecto"
+        OTHER = "OTHER", "Otro"
+
+    classroom = models.ForeignKey(ClassRoom, on_delete=models.CASCADE, related_name="events")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="created_events"
+    )
+    title = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+    event_type = models.CharField(max_length=10, choices=EventType.choices, default=EventType.OTHER)
+    date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["date", "created_at"]
+
+    def __str__(self):
+        return f"{self.get_event_type_display()}: {self.title} ({self.date})"
+
+
 class Submission(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name="submissions")
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="submissions")

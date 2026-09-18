@@ -1,13 +1,20 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
-from .models import Announcement, Assignment, ClassRoom, Submission
-from .permissions import IsMemberOfClassroom, IsOwnerOrTeacher, IsTeacherOfClassroom
+from .models import Announcement, Assignment, CalendarEvent, ClassRoom, Submission
+from .permissions import (
+    IsEventCreatorOrTeacher,
+    IsMemberOfClassroom,
+    IsOwnerOrTeacher,
+    IsTeacherOfClassroom,
+)
 from .serializers import (
     AnnouncementSerializer,
     AssignmentSerializer,
+    CalendarEventSerializer,
     ClassRoomDetailSerializer,
     ClassRoomSerializer,
     JoinClassSerializer,
@@ -63,7 +70,7 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         classroom = serializer.validated_data["classroom"]
         if classroom.teacher != self.request.user:
-            raise permissions.PermissionDenied("Solo el profesor puede publicar anuncios.")
+            raise PermissionDenied("Solo el profesor puede publicar anuncios.")
         serializer.save(author=self.request.user)
 
 
@@ -86,7 +93,7 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         classroom = serializer.validated_data["classroom"]
         if classroom.teacher != self.request.user:
-            raise permissions.PermissionDenied("Solo el profesor puede crear tareas.")
+            raise PermissionDenied("Solo el profesor puede crear tareas.")
         serializer.save()
 
     @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
@@ -103,6 +110,47 @@ class AssignmentViewSet(viewsets.ModelViewSet):
             },
         )
         return Response(SubmissionSerializer(submission).data, status=status.HTTP_200_OK)
+
+
+class CalendarEventViewSet(viewsets.ModelViewSet):
+    """Exámenes, proyectos y otros eventos de las clases del usuario.
+
+    Filtros opcionales por querystring:
+      ?classroom=<id>   solo los eventos de esa clase
+      ?month=YYYY-MM    solo los eventos de ese mes (lo usa la vista mensual)
+    """
+
+    serializer_class = CalendarEventSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEventCreatorOrTeacher]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = CalendarEvent.objects.filter(classroom__in=ClassRoom.objects.filter(teacher=user)) | \
+            CalendarEvent.objects.filter(classroom__in=ClassRoom.objects.filter(students=user))
+
+        classroom_id = self.request.query_params.get("classroom")
+        if classroom_id:
+            qs = qs.filter(classroom_id=classroom_id)
+
+        month = self.request.query_params.get("month")
+        if month:
+            try:
+                year, month_number = (int(part) for part in month.split("-"))
+            except ValueError:
+                raise ValidationError({"month": "Usa el formato YYYY-MM, por ejemplo 2026-09."})
+            qs = qs.filter(date__year=year, date__month=month_number)
+
+        return qs.distinct()
+
+    def perform_create(self, serializer):
+        classroom = serializer.validated_data["classroom"]
+        is_member = (
+            classroom.teacher == self.request.user
+            or classroom.students.filter(pk=self.request.user.pk).exists()
+        )
+        if not is_member:
+            raise PermissionDenied("Solo los miembros de la clase pueden añadir eventos.")
+        serializer.save(created_by=self.request.user)
 
 
 class SubmissionViewSet(viewsets.ModelViewSet):

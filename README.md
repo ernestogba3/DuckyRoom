@@ -38,6 +38,10 @@ DuckyRoom/
 - **Assignment**: tareas con puntos y fecha de entrega.
 - **Submission**: la entrega de un estudiante para una tarea (única por
   estudiante+tarea).
+- **CalendarEvent**: exámenes, proyectos u otros eventos con fecha. Los puede
+  crear **cualquier miembro** de la clase (profesor o estudiante), para poder
+  apuntar los proyectos que haces con tus compañeros, y los ve toda la clase.
+  Solo quien lo creó, o el profesor, puede borrarlo.
 
 Los permisos (`classrooms/permissions.py`) controlan quién puede hacer qué:
 solo el profesor de una clase puede crear tareas o anuncios; solo el dueño
@@ -89,6 +93,16 @@ docker compose up --build
    ese código.
 4. El profesor publica anuncios y crea tareas; el estudiante las entrega
    desde la pestaña "Trabajo de clase".
+5. En **Calendario** (barra superior) tienes la vista mensual con los
+   exámenes y proyectos de todas tus clases. Haz clic en un día para
+   marcar algo nuevo. Las fechas de entrega de las tareas aparecen solas.
+
+## Tests
+
+```bash
+cd backend
+venv\Scripts\python.exe manage.py test    # en Linux/Mac: python manage.py test
+```
 
 ## Endpoints principales de la API
 
@@ -103,6 +117,8 @@ docker compose up --build
 | GET/POST | `/api/announcements/?classroom=<id>` | Anuncios de una clase           |
 | GET/POST | `/api/assignments/?classroom=<id>`   | Tareas de una clase             |
 | POST   | `/api/assignments/<id>/submit/`   | Entregar una tarea (como estudiante)  |
+| GET/POST | `/api/events/`                  | Exámenes y proyectos del calendario   |
+| GET    | `/api/events/?month=YYYY-MM`      | Eventos de un mes (lo usa la vista mensual) |
 | GET/PATCH | `/api/submissions/`             | Ver / calificar entregas              |
 
 ## Ideas para seguir aprendiendo y extender el proyecto

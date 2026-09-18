@@ -17,6 +17,12 @@ export default function Navbar() {
       </Link>
       {user && (
         <div className="nav-user">
+          <Link to="/" className="nav-link">
+            Mis clases
+          </Link>
+          <Link to="/calendar" className="nav-link">
+            Calendario
+          </Link>
           <span>
             {user.first_name || user.username} · {user.role === "TEACHER" ? "Profesor" : "Estudiante"}
           </span>
